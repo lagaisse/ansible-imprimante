@@ -24,22 +24,22 @@
     
     - name: expand SD card with rasp-config/1 option
 
-    - name: add user
+    - name: "add user {{ user }}"
       #become: yes
       user: name={{ user }} comment="{{ user }} admin" shell=/usr/bin/sh password={{ password }} state=present
 
-    - name: make user sudo
+    - name: "make user {{ user }} sudo"
       #become: yes
       template: src=templates/sudoers/j2 dest=/etc/sudoers.d/{{ user }}-sudoer validate='visudo -cf %s'
 
-    - name: make user lpadmin
+    - name: "make user {{ user }} lpadmin"
       #become: yes
       user: name={{ user }} groups=lpadmin append=yes
 
-    - name: delete root user
+    - name: delete user root
       #user: name=root state=absent remove=yes
 
-    - name: installer cups et autres
+    - name: "installer cups et autres avec le user {{ user }}"
       apt: pkg={{ item }} state=installed update_cache={{ update_cache }}
       with_items: packages_to_install
       become: yes
