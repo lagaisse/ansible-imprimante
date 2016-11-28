@@ -42,6 +42,22 @@
     - name: installer cups et autres
       apt: pkg={{ item }} state=installed update_cache={{ update_cache }}
       with_items: packages_to_install
+      become: yes
+      remote_user: {{ user }}
+
+
+# Editer la conf de cups
+# sudo nano /etc/cups/cupsd.conf
+#    Listen localhost:631 devient Port 631
+#  autoriser le réseau local : cf google doc
+
+# redemarrer cups
+# sudo /etc/init.d/cups restart
+
+
+    - name: télécharger driver kodak
+      command: #curl -L http://downloads.sourceforge.net/project/cupsdriverkodak/c2esp-27.tar.gz
+
 
 
     - name: install python-apt
