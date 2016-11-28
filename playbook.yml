@@ -1,0 +1,79 @@
+#!/usr/bin/env ansible-playbook
+---
+- name: Installer le système d'imprimante sur raspberry
+  hosts: berry1
+  gather_facts: yes
+  vars:
+    # created with:
+    # python -c 'import crypt; print crypt.crypt("This is my Password", "$1$SomeSalt$")'
+    password: $1$SomeSalt$UqddPX3r4kH3UL5jq5/ZI.
+    user: roberto
+    wifi:
+      ssid: "wifi ssid"
+      password: PASSWORD
+    packages_to_install: [ cups, libcups2-dev, libcupsfilters-dev, libcupsimage2-dev 
+        ]
+    pip_packages_to_install: [ xxx ]
+    npm_packages_to_install: [ xxx]
+    update_cache: no
+  sudo: yes
+  tasks:
+    - name: put wifi config in place
+      template: src=templates/wpa_supplicant.conf.j2 dest=/etc/wpa_supplicant/wpa_supplicant.conf
+      notify: reboot
+    
+    - name: expand SD card with rasp-config/1 option
+
+    - name: add user
+      #become: yes
+      user: name={{ user }} comment="{{ user }} admin" shell=/usr/bin/sh password={{ password }} state=present
+
+    - name: make user sudo
+      #become: yes
+      template: src=templates/sudoers/j2 dest=/etc/sudoers.d/{{ user }}-sudoer validate='visudo -cf %s'
+
+    - name: make user lpadmin
+      #become: yes
+      user: name={{ user }} groups=lpadmin append=yes
+
+    - name: delete root user
+      #user: name=root state=absent remove=yes
+
+    - name: installer cups et autres
+      apt: pkg={{ item }} state=installed update_cache={{ update_cache }}
+      with_items: packages_to_install
+
+
+    - name: install python-apt
+      command: apt-get install python-apt
+      register: aptget
+      changed_when: "'python-apt is already the newest version.' not in aptget.stdout_lines"
+
+    - name: add node repo
+      command: "/bin/bash -c 'curl -sLS https://apt.adafruit.com/add | sudo bash'"
+      register: add
+      #changed_when:
+    - debug: var=add
+
+    - name: install ubuntu packages
+      apt: pkg={{ item }} state=installed update_cache={{ update_cache }}
+      with_items: packages_to_install
+  
+    - name: install python modules with pip
+      pip: name={{ item }}
+      with_items: pip_packages_to_install
+   
+    - name: install node.js packages with npm
+      npm: name={{ item }} global=yes
+      with_items: npm_packages_to_install
+
+    - name: install amazon iot device sdk
+      git: repo=https://github.com/aws/aws-iot-device-sdk-js.git dest=/home/pi/aws-iot-device-sdk-js
+      
+  handlers:
+    - name: reboot
+      command: shutdown -r now "Ansible updates triggered"
+      #command: ls -lah ./ 
+      async: 0
+      poll: 0
+      ignore_errors: true
