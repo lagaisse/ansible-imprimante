@@ -22,6 +22,11 @@
       notify: reboot
 
     - name: expand SD card with rasp-config/1 option
+      command: raspi-config --expand-rootfs
+      become: yes
+      notify:
+      - reboot
+
 
     - name: gpu memory
       #regexp: "^#?gpu_mem"
@@ -59,7 +64,8 @@
       #user: name=pi state=absent remove=yes
     
     - name: redemarrage
-      notify: reboot
+      notify: 
+      - reboot
 
     - name: remove default user
       when: "user != remote_user"
