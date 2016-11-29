@@ -3,14 +3,13 @@
 - name: Installer le système d'imprimante sur raspberry
   hosts: berry1
   gather_facts: yes
+  remote_user: pi
+  remote_pass: raspberry
   vars:
-    # created with:
-    # python -c 'import crypt; print crypt.crypt("This is my Password", "$1$SomeSalt$")'
-    password: $1$SomeSalt$UqddPX3r4kH3UL5jq5/ZI.
     user: roberto
     wifi:
       ssid: "wifi ssid"
-      password: PASSWORD
+      #password: PASSWORD
     packages_to_install: [ cups, libcups2-dev, libcupsfilters-dev, libcupsimage2-dev 
         ]
     pip_packages_to_install: [ xxx ]
@@ -21,29 +20,58 @@
     - name: put wifi config in place
       template: src=templates/wpa_supplicant.conf.j2 dest=/etc/wpa_supplicant/wpa_supplicant.conf
       notify: reboot
-    
+
     - name: expand SD card with rasp-config/1 option
+
+    - name: gpu memory
+      #regexp: "^#?gpu_mem"
+      #line: "gpu_mem=16"
+    - name: désactiver hdmi
+
+    - name: max current on usb
+      #regexp: "^#?max_usb_current"
+      #line: "max_usb_current=1"
+
+    - name: update and upgrade
+      apt: update_cache=yes upgrade=dist
 
     - name: "add user {{ user }}"
       #become: yes
-      user: name={{ user }} comment="{{ user }} admin" shell=/usr/bin/sh password={{ password }} state=present
+      user: name={{ user }} comment="admin" shell=/usr/bin/sh state=present
+
+    - name: add credential
+      when: user is defined
+      authorized_key: user={{ user }} key="{{ lookup('file', lookup('env','HOME') + '/.ssh/id_rsa.pub') }}"
+      become: yes
 
     - name: "make user {{ user }} sudo"
       #become: yes
+      when: user is defined
       template: src=templates/sudoers/j2 dest=/etc/sudoers.d/{{ user }}-sudoer validate='visudo -cf %s'
 
     - name: "make user {{ user }} lpadmin"
       #become: yes
+      when: user is defined
       user: name={{ user }} groups=lpadmin append=yes
 
-    - name: delete user root
-      #user: name=root state=absent remove=yes
+    - name: delete user pi
+      when: user is defined
+      #user: name=pi state=absent remove=yes
+    
+    - name: redemarrage
+      notify: reboot
 
-    - name: "installer cups et autres avec le user {{ user }}"
-      apt: pkg={{ item }} state=installed update_cache={{ update_cache }}
-      with_items: packages_to_install
-      become: yes
-      remote_user: {{ user }}
+    - name: remove default user
+      when: "user != remote_user"
+      user: name={{ remote_user }} state=absent force=yes
+      async: 0
+      poll: 0
+      ignore_errors: True
+
+    # - name: "installer cups et autres avec le user {{ user }}"
+    #   apt: pkg={{ item }} state=installed update_cache={{ update_cache }}
+    #   with_items: packages_to_install
+    #   become: yes
 
 
 # Editer la conf de cups
@@ -56,40 +84,22 @@
 
 
     - name: télécharger driver kodak
-      command: #curl -L http://downloads.sourceforge.net/project/cupsdriverkodak/c2esp-27.tar.gz
+      command: curl -L http://downloads.sourceforge.net/project/cupsdriverkodak/c2esp-27.tar.gz
 
 
-
-    - name: install python-apt
-      command: apt-get install python-apt
-      register: aptget
-      changed_when: "'python-apt is already the newest version.' not in aptget.stdout_lines"
-
-    - name: add node repo
-      command: "/bin/bash -c 'curl -sLS https://apt.adafruit.com/add | sudo bash'"
-      register: add
-      #changed_when:
-    - debug: var=add
-
-    - name: install ubuntu packages
-      apt: pkg={{ item }} state=installed update_cache={{ update_cache }}
-      with_items: packages_to_install
-  
-    - name: install python modules with pip
-      pip: name={{ item }}
-      with_items: pip_packages_to_install
-   
-    - name: install node.js packages with npm
-      npm: name={{ item }} global=yes
-      with_items: npm_packages_to_install
-
-    - name: install amazon iot device sdk
-      git: repo=https://github.com/aws/aws-iot-device-sdk-js.git dest=/home/pi/aws-iot-device-sdk-js
-      
   handlers:
     - name: reboot
       command: shutdown -r now "Ansible updates triggered"
       #command: ls -lah ./ 
       async: 0
       poll: 0
-      ignore_errors: true
+      ignore_errors: True
+      notify:
+       - wait for reboot
+
+    - name: wait for reboot
+      local_action: wait_for host={{ inventory_hostname }}
+                    state=started
+                    timeout=30 # doesn't appear to work correctly now, instead a simple delay is imposed - that's fine for now
+      sudo: false
+
